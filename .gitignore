@@ -5,3 +5,6 @@ public/pdfjs
 .DS_Store
 *.tsbuildinfo
 public/tesseract
+public/fonts
+desktop/app/
+desktop/release/

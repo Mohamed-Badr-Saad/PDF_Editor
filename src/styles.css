@@ -256,6 +256,11 @@ kbd {
   text-align: center;
   padding: 2rem;
 }
+.drop-sub {
+  margin: -0.9rem 0 0.4rem;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
 .drop-title {
   margin: 0 0 0.6rem;
   font-size: var(--fs-lg);
@@ -602,6 +607,7 @@ kbd {
   flex: 1;
   min-width: 0;
   display: flex;
+  flex-direction: column;
 }
 .desk {
   flex: 1;
@@ -1210,14 +1216,23 @@ circle.sel-handle {
   position: fixed;
   inset: 54px 0 0 0;
   z-index: 90;
-  display: grid;
-  place-items: center;
-  background: rgba(27, 42, 65, 0.12);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(27, 42, 65, 0.06);
   border: 3px dashed var(--ink-3);
-  font-size: var(--fs-lg);
-  font-weight: 700;
-  color: var(--ink);
   pointer-events: none;
+}
+.drop-hint {
+  max-width: min(640px, calc(100vw - 40px));
+  padding: 0.7rem 1.1rem;
+  border-radius: var(--r-md);
+  background: var(--ink);
+  color: #fff;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  text-align: center;
+  box-shadow: 0 12px 30px -10px rgba(23, 33, 47, 0.5);
 }
 
 /* ---------- Responsive ---------- */
@@ -1241,12 +1256,6 @@ circle.sel-handle {
   .drop-sheet {
     aspect-ratio: auto;
     min-height: 320px;
-  }
-  .sidebar {
-    display: none;
-  }
-  .panel {
-    display: none;
   }
   .file-name {
     width: 140px;
@@ -1648,5 +1657,214 @@ circle.sel-handle {
   }
   .rail-group {
     padding-bottom: 0.2rem;
+  }
+}
+
+.scan-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem 0.5rem 1rem;
+  background: #fff8d1;
+  border-bottom: 1px solid #ecd97a;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+.scan-banner > span {
+  flex: 1;
+}
+.scan-banner strong {
+  color: var(--ink);
+}
+.scan-banner .btn {
+  flex-shrink: 0;
+}
+.scan-banner ~ .find-bar {
+  top: 58px;
+}
+.hbtn.has-dot {
+  position: relative;
+}
+.hbtn.has-dot::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--marker);
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+/* ---------- Folding side panels ---------- */
+.panel-toggle-left {
+  margin-left: -0.35rem;
+}
+.drawer-scrim,
+.doc-icon,
+.menu-item.phone-only {
+  display: none;
+}
+
+/* Phones and small tablets: panels slide over the page as drawers. */
+@media (max-width: 900px) {
+  .workspace {
+    position: relative;
+  }
+  .sidebar,
+  .panel {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 40;
+    box-shadow: 0 0 40px -8px rgba(27, 42, 65, 0.45);
+    animation: drawer-in 160ms ease-out;
+  }
+  .sidebar {
+    left: 0;
+    width: 176px;
+  }
+  .panel {
+    right: 0;
+    width: min(320px, 88vw);
+    --drawer-from: 16px;
+  }
+  .drawer-scrim {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 39;
+    background: rgba(27, 42, 65, 0.32);
+  }
+}
+@keyframes drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--drawer-from, -16px));
+  }
+}
+
+/* Phones: a compact top bar that always keeps Save in view. */
+@media (max-width: 600px) {
+  .header .brand,
+  .hbtn-ocr,
+  .hbtn-redo,
+  .doc-label,
+  .doc-chevron {
+    display: none;
+  }
+  .doc-icon {
+    display: block;
+  }
+  .menu-item.phone-only {
+    display: flex;
+  }
+  .panel-toggle-left {
+    margin-left: 0;
+  }
+  .hgroup {
+    border-left: 0;
+  }
+  .menu {
+    position: fixed;
+    top: 52px;
+    left: 0.5rem;
+    right: 0.5rem;
+    min-width: 0;
+  }
+  .scan-banner {
+    padding: 0.4rem 0.5rem 0.4rem 0.75rem;
+    gap: 0.5rem;
+  }
+  .scan-banner > svg,
+  .scan-more {
+    display: none;
+  }
+}
+@media (max-width: 380px) {
+  .hbtn-find,
+  .page-total {
+    display: none;
+  }
+}
+
+/* Touch screens: swipe to scroll the document. Drawing tools keep the finger for drawing. */
+.desk,
+.page[data-tool='select'],
+.page[data-tool='edit'] {
+  touch-action: pan-x pan-y;
+}
+.page [data-ann-id],
+.page [data-handle] {
+  touch-action: none;
+}
+@media (hover: none) {
+  /* Touch screens use the page bar at the top of the panel instead of hover buttons. */
+  .thumb-actions {
+    display: none !important;
+  }
+  /* Keyboard shortcuts mean nothing on a touch screen. */
+  .shortcuts,
+  .menu-item kbd {
+    display: none;
+  }
+}
+
+.install-btn {
+  margin-right: 0.6rem;
+}
+
+/* ---------- Page bar (top of the pages panel) ---------- */
+.page-bar {
+  flex-shrink: 0;
+  padding: 0.55rem 0.5rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.page-bar-label {
+  padding-left: 0.2rem;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.page-bar-btns {
+  display: flex;
+  justify-content: space-between;
+}
+.page-bar-btns button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.page-bar-btns button:hover:not(:disabled) {
+  background: rgba(27, 42, 65, 0.08);
+  color: var(--ink);
+}
+.page-bar-btns button.danger:hover:not(:disabled) {
+  background: var(--danger);
+  color: #fff;
+}
+.page-bar-btns button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+@media (hover: none) {
+  .page-bar-btns button {
+    width: 34px;
+    height: 34px;
   }
 }

@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { Copy, FilePlus2, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
-import { useStore } from '../state/store';
+import { useStore, isNarrow } from '../state/store';
 import type { Annotation, PageItem } from '../lib/types';
 import { displaySize } from '../lib/geometry';
 import { renderPage } from '../lib/pdf';
@@ -84,6 +84,8 @@ export function Sidebar() {
       anchor.current = p.id;
     }
     st.scrollToPage(p.id);
+    // On phones the pages panel covers the page: close it once a page is picked.
+    if (isNarrow() && !e.shiftKey && !e.ctrlKey && !e.metaKey) st.setPanelOpen('left', false);
   };
 
   const indexFromEvent = (e: React.DragEvent, i: number) => {
@@ -104,8 +106,50 @@ export function Sidebar() {
     if (ids) useStore.getState().movePages(JSON.parse(ids), at);
   };
 
+  // The bar acts on the selected pages, or on the current page when none are selected.
+  const targets = selected.length ? pages.filter((x) => selectedSet.has(x.id)) : pages.filter((x) => x.id === activeId).slice(0, 1);
+  const targetIds = targets.map((x) => x.id);
+  const lastIndex = Math.max(...targets.map((t) => pages.indexOf(t)), -1);
+  const what = targets.length > 1 ? `${targets.length} pages` : 'page';
+  const st = useStore.getState;
+
   return (
     <aside className="sidebar" aria-label="Pages">
+      <div className="page-bar" role="toolbar" aria-label="Page actions">
+        <span className="page-bar-label">
+          {targets.length > 1 ? `${targets.length} pages selected` : lastIndex >= 0 ? `Page ${lastIndex + 1}` : 'Pages'}
+        </span>
+        <div className="page-bar-btns">
+          <button data-tip={`Rotate ${what} left`} aria-label={`Rotate ${what} left`} disabled={!targets.length} onClick={() => st().rotatePages(targetIds, -90)}>
+            <RotateCcw size={16} />
+          </button>
+          <button data-tip={`Rotate ${what} right`} aria-label={`Rotate ${what} right`} disabled={!targets.length} onClick={() => st().rotatePages(targetIds, 90)}>
+            <RotateCw size={16} />
+          </button>
+          <button data-tip={`Duplicate ${what}`} aria-label={`Duplicate ${what}`} disabled={!targets.length} onClick={() => st().duplicatePages(targetIds)}>
+            <Copy size={16} />
+          </button>
+          <button
+            data-tip={targets.length ? `Insert a blank page after page ${lastIndex + 1}` : 'Insert a blank page'}
+            aria-label="Insert blank page"
+            onClick={() => insertBlankPage(lastIndex + 1, pages[lastIndex])}
+          >
+            <FilePlus2 size={16} />
+          </button>
+          <button
+            className="danger"
+            data-tip={targets.length >= pages.length ? 'A document needs at least one page' : `Delete ${what}`}
+            aria-label={`Delete ${what}`}
+            disabled={!targets.length || targets.length >= pages.length}
+            onClick={() => {
+              if (targets.length > 1 && !confirm(`Delete ${targets.length} pages?`)) return;
+              st().deletePages(targetIds);
+            }}
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </div>
       <div
         className="thumbs"
         onDragOver={(e) => {

@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore, uid } from '../../state/store';
 import { measureText, usesOriginalFont } from '../geometry';
+import { hasRtl } from '../bidi';
 import { forgetPdf, openPdf, renderPage } from '../pdf';
+import { loadUnicodeFont } from '../fontsLoader';
 import type { Annotation, PageItem, TextAnn } from '../types';
 import type { ImageTarget, PageAnalysis, TextSegment } from './page';
 
@@ -39,7 +41,8 @@ export function getAnalysis(page: PageItem): Promise<PageAnalysis | null> {
 /** Makes an editable text item from a segment of the PDF's own text. */
 export function segmentToAnn(seg: TextSegment, dx = 0): TextAnn {
   const rad = (seg.angle * Math.PI) / 180;
-  return {
+  const rtl = hasRtl(seg.text);
+  const ann: TextAnn = {
     id: uid('ann'),
     type: 'text',
     x: seg.originX + Math.sin(rad) * seg.ascent * seg.fontSize + dx,
@@ -60,11 +63,22 @@ export function segmentToAnn(seg: TextSegment, dx = 0): TextAnn {
       tc: seg.tc,
       tw: seg.tw,
       chars: seg.chars,
-      useOriginal: true,
+      // Arabic needs letter joining, which only the bundled font can do.
+      useOriginal: !rtl,
       originalText: seg.text,
       segId: seg.id,
     },
   };
+  if (rtl) {
+    // Keep the right edge where the original line ended.
+    if (seg.angle === 0) ann.x = seg.box.x + seg.box.w - measureText(ann).w;
+    else {
+      const shift = seg.advance - measureText(ann).w;
+      ann.x += shift * Math.cos(rad);
+      ann.y += shift * Math.sin(rad);
+    }
+  }
+  return ann;
 }
 
 /** Width of a text item's first line along its baseline, in points. */
@@ -93,7 +107,7 @@ export function reflowLine(pageId: string, annId: string) {
   const st = useStore.getState();
   const page = st.present.pages.find((p) => p.id === pageId);
   const ann = st.present.annotations[pageId]?.find((a) => a.id === annId) as TextAnn | undefined;
-  if (!page?.docId || !ann?.source || ann.text.includes('\n')) return;
+  if (!page?.docId || !ann?.source || ann.text.includes('\n') || hasRtl(ann.text)) return;
   const analysis = ready.get(`${page.docId}:${page.srcIndex}`);
   const seg = analysis?.segments.find((sg) => sg.id === ann.source!.segId);
   if (!analysis || !seg || seg.angle !== 0) return;
@@ -251,6 +265,7 @@ export function useRenderSource(page: PageItem): { docId: string; index: number 
           removed: { [page.id]: removed ?? [] },
           docs: st.docs,
           images: st.images,
+          loadUnicodeFont,
         });
         return res.bytes;
       })

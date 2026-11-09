@@ -2,6 +2,7 @@
 // can be cached for offline use:
 //   public/pdfjs      pdf.js fonts, cmaps, wasm decoders, ICC profiles
 //   public/tesseract  OCR worker, engine (wasm) and English/Arabic language data
+//   public/fonts      Noto Sans Arabic (OFL), for Arabic and other non-Latin text
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
@@ -29,4 +30,11 @@ for (const f of ['tesseract-core-lstm.wasm.js', 'tesseract-core-simd-lstm.wasm.j
 for (const lang of ['eng', 'ara']) {
   cpSync(join(pkgDir(`@tesseract.js-data/${lang}`), '4.0.0_best_int', `${lang}.traineddata.gz`), join(tess, 'lang', `${lang}.traineddata.gz`));
 }
-console.log('Assets copied to public/pdfjs and public/tesseract');
+// Unicode font (Arabic + Latin) used when text needs more than the standard PDF fonts.
+const fontsTarget = join(pub, 'fonts');
+mkdirSync(fontsTarget, { recursive: true });
+const noto = pkgDir('@expo-google-fonts/noto-sans-arabic');
+cpSync(join(noto, '400Regular', 'NotoSansArabic_400Regular.ttf'), join(fontsTarget, 'NotoSansArabic-Regular.ttf'));
+cpSync(join(noto, '700Bold', 'NotoSansArabic_700Bold.ttf'), join(fontsTarget, 'NotoSansArabic-Bold.ttf'));
+
+console.log('Assets copied to public/pdfjs, public/tesseract and public/fonts');

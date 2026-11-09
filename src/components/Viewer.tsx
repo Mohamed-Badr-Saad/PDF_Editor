@@ -45,28 +45,62 @@ export function Viewer() {
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [scrollRequest]);
 
-  // Ctrl/⌘ + wheel zooms around the pointer.
+  // Ctrl/⌘ + wheel, or pinching with two fingers, zooms around that spot.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.metaKey) return;
-      e.preventDefault();
+    const zoomTo = (next: number, clientX: number, clientY: number) => {
       const st = useStore.getState();
       const old = st.zoom;
-      const next = Math.min(4, Math.max(0.25, old * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
+      next = Math.min(4, Math.max(0.25, next));
+      if (Math.abs(next - old) < 0.001) return;
       const rect = el.getBoundingClientRect();
-      const px = e.clientX - rect.left + el.scrollLeft;
-      const py = e.clientY - rect.top + el.scrollTop;
+      const px = clientX - rect.left + el.scrollLeft;
+      const py = clientY - rect.top + el.scrollTop;
       st.setZoom(next);
       requestAnimationFrame(() => {
         const k = useStore.getState().zoom / old;
-        el.scrollLeft = px * k - (e.clientX - rect.left);
-        el.scrollTop = py * k - (e.clientY - rect.top);
+        el.scrollLeft = px * k - (clientX - rect.left);
+        el.scrollTop = py * k - (clientY - rect.top);
       });
     };
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      zoomTo(useStore.getState().zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1), e.clientX, e.clientY);
+    };
+    let pinch: { dist: number; zoom: number } | null = null;
+    let frame = 0;
+    const spread = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) pinch = { dist: spread(e.touches), zoom: useStore.getState().zoom };
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinch || e.touches.length !== 2) return;
+      e.preventDefault();
+      const t = e.touches;
+      const target = pinch.zoom * (spread(t) / Math.max(1, pinch.dist));
+      const cx = (t[0].clientX + t[1].clientX) / 2;
+      const cy = (t[0].clientY + t[1].clientY) / 2;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => zoomTo(target, cx, cy));
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch = null;
+    };
     el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    el.addEventListener('touchcancel', onTouchEnd);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+      cancelAnimationFrame(frame);
+    };
   }, []);
 
   return (

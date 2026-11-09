@@ -3,6 +3,7 @@
 import { useStore, ocrKey } from '../state/store';
 import { getAnalysis } from './content/editorBridge';
 import type { PageItem } from './types';
+import { hasRtl, visualToLogical } from './bidi';
 
 export interface LayoutChar {
   ch: string;
@@ -66,7 +67,15 @@ export async function getTextLayout(page: PageItem): Promise<LayoutLine[]> {
     } else lines.push({ ...p, chars: [...p.chars] });
   }
   lines.sort((a, b) => a.top - b.top);
+  // Characters in visual (left-to-right) order; Arabic is turned back into reading order when copied.
+  for (const l of lines) l.chars.sort((a, b) => a.x0 - b.x0);
   return lines.map(({ top, bottom, chars }) => ({ top, bottom, chars }));
+}
+
+/** Selected characters (visual order) → text in reading order. */
+function readingText(chars: LayoutChar[]): string {
+  const units = chars.map((c) => c.ch);
+  return (units.some(hasRtl) ? visualToLogical(units) : units.join('')).trim();
 }
 
 /** Caret position (line, index between characters) nearest to a point. */
@@ -115,7 +124,7 @@ export function selectBetween(lines: LayoutLine[], ax: number, ay: number, bx: n
     const x0 = Math.min(...visible.map((c) => c.x0));
     const x1 = Math.max(...visible.map((c) => c.x1));
     quads.push({ x: x0, y: l.top, w: x1 - x0, h: l.bottom - l.top });
-    parts.push(sel.map((c) => c.ch).join('').trim());
+    parts.push(readingText(sel));
   }
   if (!quads.length) return null;
   return { quads, text: parts.join('\n') };
@@ -132,7 +141,7 @@ function selectionFromRange(lines: LayoutLine[], a: { line: number; index: numbe
     const x0 = Math.min(...visible.map((c) => c.x0));
     const x1 = Math.max(...visible.map((c) => c.x1));
     quads.push({ x: x0, y: l.top, w: x1 - x0, h: l.bottom - l.top });
-    parts.push(sel.map((c) => c.ch).join('').trim());
+    parts.push(readingText(sel));
   }
   return quads.length ? { quads, text: parts.join('\n') } : null;
 }
@@ -188,7 +197,7 @@ export function textInBoxes(lines: LayoutLine[], boxes: Box[]): string {
       const cx = (c.x0 + c.x1) / 2;
       return boxes.some((b) => cx >= b.x && cx <= b.x + b.w && mid >= b.y && mid <= b.y + b.h);
     });
-    const t = chars.map((c) => c.ch).join('').trim();
+    const t = readingText(chars);
     if (t) out.push(t);
   }
   return out.join(' ');
@@ -196,16 +205,26 @@ export function textInBoxes(lines: LayoutLine[], boxes: Box[]): string {
 
 /** Finds all occurrences of `query` (case-insensitive) and returns their boxes. */
 export function findInLayout(lines: LayoutLine[], query: string): Box[][] {
-  const q = query.trim().toLocaleLowerCase();
+  let q = query.trim().normalize('NFKC').toLocaleLowerCase();
   if (!q) return [];
+  // Page text is in visual order, so look for Arabic words written backwards.
+  if (hasRtl(q)) q = [...q].reverse().join('');
   const results: Box[][] = [];
   for (const l of lines) {
-    const text = l.chars.map((c) => c.ch).join('').toLocaleLowerCase();
+    // Normalised text with a map back to character positions.
+    let text = '';
+    const map: number[] = [];
+    l.chars.forEach((c, k) => {
+      let n = c.ch.normalize('NFKC').toLocaleLowerCase();
+      if (hasRtl(n) && n.length > 1) n = [...n].reverse().join('');
+      for (let j = 0; j < n.length; j++) map.push(k);
+      text += n;
+    });
     let from = 0;
     for (;;) {
       const i = text.indexOf(q, from);
       if (i < 0) break;
-      const sel = l.chars.slice(i, i + q.length);
+      const sel = l.chars.slice(map[i], map[i + q.length - 1] + 1);
       const x0 = Math.min(...sel.map((c) => c.x0));
       const x1 = Math.max(...sel.map((c) => c.x1));
       results.push([{ x: x0, y: l.top, w: x1 - x0, h: l.bottom - l.top }]);

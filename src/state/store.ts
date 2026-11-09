@@ -2,6 +2,21 @@ import { create } from 'zustand';
 import type { Annotation, OcrPage, PageItem, Rotation, SourceDoc, StoredImage, Tool, ToolStyle } from '../lib/types';
 import { normalizeRotation } from '../lib/geometry';
 
+const PANELS_KEY = 'pagecraft.panels';
+/** Phones and small tablets show the side panels as slide-over drawers. */
+export const isNarrow = () => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 900px)').matches;
+function loadPanels(): { left: boolean; right: boolean } {
+  // Drawers start closed on small screens so the page gets the whole width.
+  if (isNarrow()) return { left: false, right: false };
+  try {
+    const v = JSON.parse(localStorage.getItem(PANELS_KEY) ?? 'null');
+    if (v && typeof v.left === 'boolean' && typeof v.right === 'boolean') return v;
+  } catch {
+    /* ignore */
+  }
+  return { left: true, right: true };
+}
+
 /** The part of the state that undo/redo tracks. */
 export interface DocState {
   pages: PageItem[];
@@ -47,6 +62,9 @@ interface Store {
   busy: string | null;
   dialog: DialogName | null;
   rightPanel: 'properties' | 'comments';
+  /** Which side panels are unfolded (pages on the left, properties/comments on the right). */
+  panels: { left: boolean; right: boolean };
+  setPanelOpen(side: 'left' | 'right', open: boolean): void;
   /** Name written into comments. */
   author: string;
   find: FindState | null;
@@ -58,6 +76,12 @@ interface Store {
   textSel: { pageId: string; quads: { x: number; y: number; w: number; h: number }[]; text: string } | null;
   /** Request from Ctrl+A to select all text on a page. */
   selectAllRequest: { pageId: string; nonce: number } | null;
+  /** The Unicode web font finished loading (text widths change). */
+  fontsReady: boolean;
+  /** Pages that look like scans (no text, mostly a picture), by page id. */
+  scanPages: string[];
+  /** The "these pages are scans" banner was closed for this document. */
+  scanBannerClosed: boolean;
   /** Item copied with Ctrl+C, pasted with Ctrl+V. */
   clipboard: { ann: Annotation; pageId: string } | null;
 
@@ -177,6 +201,7 @@ export const useStore = create<Store>((set, get) => {
     busy: null,
     dialog: null,
     rightPanel: 'properties',
+    panels: loadPanels(),
     author: loadAuthor(),
     find: null,
     cropping: null,
@@ -184,6 +209,9 @@ export const useStore = create<Store>((set, get) => {
     textSel: null,
     selectAllRequest: null,
     clipboard: null,
+    fontsReady: false,
+    scanPages: [],
+    scanBannerClosed: false,
 
     commit(fn) {
       const { present, past } = get();
@@ -236,6 +264,8 @@ export const useStore = create<Store>((set, get) => {
         find: null,
         cropping: null,
         textSel: null,
+        scanPages: [],
+        scanBannerClosed: false,
       });
     },
 
@@ -386,6 +416,17 @@ export const useStore = create<Store>((set, get) => {
     },
     setRightPanel(p) {
       set({ rightPanel: p });
+      if (p === 'comments') get().setPanelOpen('right', true);
+    },
+    setPanelOpen(side, open) {
+      const panels = { ...get().panels, [side]: open };
+      set({ panels });
+      if (isNarrow()) return; // drawer state on phones isn't a lasting preference
+      try {
+        localStorage.setItem(PANELS_KEY, JSON.stringify(panels));
+      } catch {
+        /* private mode */
+      }
     },
     setAuthor(name) {
       set({ author: name });
@@ -400,6 +441,8 @@ export const useStore = create<Store>((set, get) => {
     },
     setCropping(c) {
       set({ cropping: c });
+      // Cropping is finished from the right panel, so make sure it's showing.
+      if (c && !get().panels.right) get().setPanelOpen('right', true);
     },
     setFocusNote(id) {
       set({ focusNote: id });

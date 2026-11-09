@@ -1,5 +1,6 @@
 import { useStore, uid } from '../state/store';
 import type { ExportInput } from './exportPdf';
+import { loadUnicodeFont } from './fontsLoader';
 import { forgetPdf, openPdf, renderPageToBlob } from './pdf';
 import { measureText } from './geometry';
 import type { PageItem, TextAnn } from './types';
@@ -26,6 +27,7 @@ function exportInput(pages?: PageItem[]): ExportInput {
     removed: s.present.removed,
     ocr: s.ocr,
     author: s.author,
+    loadUnicodeFont,
     docs: s.docs,
     images: s.images,
     title: s.fileName.replace(/\.pdf$/i, ''),

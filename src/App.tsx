@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStore, getSelectedAnnotation, uid } from './state/store';
 import { Welcome } from './components/Welcome';
-import { Header } from './components/Header';
+import { Header, togglePanel } from './components/Header';
 import { ToolRail, TOOL_KEYS, activateTool } from './components/ToolRail';
 import { Sidebar } from './components/Sidebar';
 import { Viewer } from './components/Viewer';
@@ -13,6 +13,9 @@ import { CommentsPanel } from './components/CommentsPanel';
 import { FindBar } from './components/FindBar';
 import { applyCrop, cancelCrop } from './lib/crop';
 import { Tooltip } from './components/Tooltip';
+import { ScanBanner } from './components/ScanBanner';
+import { detectScans } from './lib/scanDetect';
+import { describeDrag, dropHint, handleDrop, type DragInfo } from './lib/dropFiles';
 import type { Annotation, TextAnn } from './lib/types';
 import { ACCEPT_ALL, importFiles, loadImage, pickFiles, rotatedImage } from './lib/importFiles';
 import { saveDocument } from './lib/actions';
@@ -47,10 +50,11 @@ export default function App() {
   const toasts = useStore((s) => s.toasts);
   const busy = useStore((s) => s.busy);
   const rightPanel = useStore((s) => s.rightPanel);
+  const panels = useStore((s) => s.panels);
   const findOpen = useStore((s) => s.find !== null);
   const dialog = useStore((s) => s.dialog);
   const setDialog = useStore((s) => s.openDialog);
-  const [dragOver, setDragOver] = useState(false);
+  const [drag, setDrag] = useState<DragInfo | null>(null);
 
   // Keyboard shortcuts.
   useEffect(() => {
@@ -160,6 +164,10 @@ export default function App() {
         else st.setTool('select');
         return;
       }
+      if (!mod && !e.altKey && (e.key === '[' || e.key === ']') && st.present.pages.length) {
+        togglePanel(e.key === '[' ? 'left' : 'right');
+        return;
+      }
       if (!mod && !e.altKey && TOOL_KEYS[e.key.toLowerCase()] && st.present.pages.length) {
         activateTool(TOOL_KEYS[e.key.toLowerCase()], () => setDialog('signature'));
       }
@@ -265,6 +273,14 @@ export default function App() {
     return () => window.removeEventListener('paste', onPaste);
   }, []);
 
+  // Look for scanned pages whenever the page list changes, to offer OCR right away.
+  const pageList = useStore((s) => s.present.pages);
+  useEffect(() => {
+    if (!pageList.length) return;
+    const t = setTimeout(detectScans, 400);
+    return () => clearTimeout(t);
+  }, [pageList]);
+
   // Warn before losing unsaved work.
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -317,32 +333,53 @@ export default function App() {
     <div
       className="app"
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes('Files')) {
-          e.preventDefault();
-          setDragOver(true);
-        }
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        const info = describeDrag(e);
+        // Only update when something changed (dragover fires constantly).
+        setDrag((d) => (info && d && d.pageId === info.pageId && d.images === info.images && d.pdfs === info.pdfs ? d : info));
       }}
       onDragLeave={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false);
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDrag(null);
       }}
       onDrop={(e) => {
-        setDragOver(false);
+        setDrag(null);
         if (e.defaultPrevented || !e.dataTransfer.files.length) return;
         e.preventDefault();
-        importFiles(Array.from(e.dataTransfer.files));
+        handleDrop(e);
       }}
     >
       <Header onWatermark={() => setDialog('watermark')} onPageNumbers={() => setDialog('pagenumbers')} />
       <div className="workspace">
-        <Sidebar />
+        {panels.left && <Sidebar />}
         <ToolRail onSignature={() => setDialog('signature')} />
         <div className="desk-wrap">
+          <ScanBanner />
           {findOpen && <FindBar />}
           <Viewer />
         </div>
-        {rightPanel === 'comments' ? <CommentsPanel /> : <PropertiesPanel />}
+        {panels.right && (rightPanel === 'comments' ? <CommentsPanel /> : <PropertiesPanel />)}
+        {(panels.left || panels.right) && (
+          // Phones: panels slide over the page; tapping outside closes them.
+          <div
+            className="drawer-scrim"
+            onClick={() => {
+              const st = useStore.getState();
+              st.setPanelOpen('left', false);
+              st.setPanelOpen('right', false);
+            }}
+          />
+        )}
       </div>
-      {dragOver && <div className="drop-overlay">Drop to add these files at the end</div>}
+      {drag && (
+        <>
+          {drag.pageId && <style>{`.page[data-page-id="${drag.pageId}"]{outline:3px solid var(--marker);outline-offset:4px}`}</style>}
+          <div className="drop-overlay">
+            <span className="drop-hint">{dropHint(drag)}</span>
+          </div>
+        </>
+      )}
       {busy && (
         <div className="busy" role="alert" aria-busy="true">
           <div className="busy-card">

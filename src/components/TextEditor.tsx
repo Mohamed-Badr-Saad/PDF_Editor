@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useStore } from '../state/store';
 import { reflowLine } from '../lib/content/editorBridge';
 import type { TextAnn } from '../lib/types';
-import { BASELINE, LINE_HEIGHT, baselineOf, cssFontFamily, measureText } from '../lib/geometry';
+import { BASELINE, LINE_HEIGHT, baselineOf, fontStackOf, measureText } from '../lib/geometry';
+import { baseDirection } from '../lib/bidi';
 
 interface Props {
   pageId: string;
@@ -64,16 +65,34 @@ export function TextEditor({ pageId, ann, zoom }: Props) {
   useEffect(() => () => finish(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { w, h } = measureText(ann);
+  // Right-to-left text grows to the left from the box's right edge, as on the page.
+  const rtl = baseDirection(ann.text) === 'rtl';
+  const pad = ann.fontSize * (rtl ? 1 : 1.5);
   return (
     <textarea
       ref={ref}
       className="text-editor"
       value={ann.text}
       spellCheck
+      dir={baseDirection(ann.text) === 'rtl' ? 'rtl' : 'auto'}
       placeholder="Type here"
-      onChange={(e) =>
-        useStore.getState().updateAnnotation(pageId, ann.id, (a) => ({ ...(a as TextAnn), text: e.target.value }), { live: true })
-      }
+      onChange={(e) => {
+        const text = e.target.value;
+        useStore.getState().updateAnnotation(
+          pageId,
+          ann.id,
+          (a) => {
+            const t = a as TextAnn;
+            const next = { ...t, text };
+            if (baseDirection(text) !== 'rtl') return next;
+            // Right-to-left text keeps its right edge still while typing.
+            const shift = measureText(t).w - measureText(next).w;
+            const rad = (t.angle * Math.PI) / 180;
+            return { ...next, x: t.x + shift * Math.cos(rad), y: t.y + shift * Math.sin(rad) };
+          },
+          { live: true },
+        );
+      }}
       onBlur={finish}
       onKeyDown={(e) => {
         e.stopPropagation();
@@ -83,14 +102,16 @@ export function TextEditor({ pageId, ann, zoom }: Props) {
         }
       }}
       style={{
-        left: ann.x * zoom,
+        left: (rtl ? ann.x - pad : ann.x) * zoom,
         top: ann.y * zoom,
-        width: (w + ann.fontSize * 1.5) * zoom,
+        width: (w + pad) * zoom,
+        textAlign: rtl ? 'right' : undefined,
+        transformOrigin: rtl ? `${pad * zoom}px 0` : undefined,
         height: Math.max(h, ann.fontSize * LINE_HEIGHT) * zoom + 2,
         minWidth: 90,
         // Rotate with the text, then shift so the textarea baseline matches the PDF baseline.
         transform: `rotate(${ann.angle || 0}deg) translateY(${(baselineOf(ann) - BASELINE[ann.font]) * ann.fontSize * zoom}px)`,
-        font: `${ann.italic ? 'italic ' : ''}${ann.bold ? 700 : 400} ${ann.fontSize * zoom}px/${LINE_HEIGHT} ${cssFontFamily[ann.font]}`,
+        font: `${ann.italic ? 'italic ' : ''}${ann.bold ? 700 : 400} ${ann.fontSize * zoom}px/${LINE_HEIGHT} ${fontStackOf(ann)}`,
         background: ann.source ? '#fff' : undefined,
         color: ann.color,
         opacity: ann.opacity,

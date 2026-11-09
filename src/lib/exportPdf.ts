@@ -30,7 +30,8 @@ import {
   setWordSpacing,
 } from 'pdf-lib';
 import type { Annotation, FontFamily, ImageAnn, MarkupAnn, NoteAnn, OcrPage, PageItem, SourceDoc, StoredImage, TextAnn } from './types';
-import { LINE_HEIGHT, arrowHead, arrowShaftEnd, baselineOf, fullImageBox, inkPath, usesOriginalFont } from './geometry';
+import { LINE_HEIGHT, arrowHead, arrowShaftEnd, baselineOf, fullImageBox, inkPath, needsUnicodeFont, usesOriginalFont } from './geometry';
+import { visualRuns } from './bidi';
 import { baseMatrix, interpretPage, sourceDoc } from './content/page';
 import { loadFonts, type FontInfo } from './content/fonts';
 import { encodeWithFont, rewriteContent } from './content/rewrite';
@@ -50,6 +51,8 @@ export interface ExportInput {
   ocr?: Record<string, OcrPage>;
   /** Name used for comments that have no author yet. */
   author?: string;
+  /** Provides the Unicode font file (Arabic etc.) when text needs it. */
+  loadUnicodeFont?: (bold: boolean) => Promise<Uint8Array>;
   title?: string;
   /** Fallback for source files pdf-lib cannot read (e.g. encrypted): returns a PNG of the page in base space. */
   rasterize?: (docId: string, index: number) => Promise<Uint8Array>;
@@ -105,6 +108,20 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
     }
     return f;
   };
+  // Unicode font (Arabic + Latin), embedded only when some text needs it.
+  const unicodeFonts = new Map<boolean, Promise<PDFFont>>();
+  let fontkitReady: Promise<void> | null = null;
+  const unicodeFont = input.loadUnicodeFont
+    ? (bold: boolean) => {
+        let f = unicodeFonts.get(bold);
+        if (!f) {
+          fontkitReady ??= import('@pdf-lib/fontkit').then((m) => out.registerFontkit(m.default));
+          f = fontkitReady.then(async () => out.embedFont(await input.loadUnicodeFont!(bold), { subset: true }));
+          unicodeFonts.set(bold, f);
+        }
+        return f;
+      }
+    : undefined;
   const embedded = new Map<string, PDFImage>();
   const image = async (id: string) => {
     let img = embedded.get(id);
@@ -176,7 +193,7 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
       const fontsOf = () => (pageFonts ??= loadFonts(page.node.Resources() as PDFDict | undefined));
       page.pushOperators(pushGraphicsState(), concatTransformationMatrix(...baseMatrix(page)), setLineJoin(LineJoinStyle.Round));
       for (const a of anns) {
-        await drawAnnotation(page, a, H, { font, image, warn: (w) => warnings.add(w), pageFonts: fontsOf, original: src !== 'raster' && !!src });
+        await drawAnnotation(page, a, H, { font, image, unicodeFont, warn: (w) => warnings.add(w), pageFonts: fontsOf, original: src !== 'raster' && !!src });
       }
       if (ocrLines.length) {
         ocrFontRef ??= addOcrFont(out);
@@ -197,6 +214,7 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
 
 interface DrawCtx {
   font(a: TextAnn): Promise<PDFFont>;
+  unicodeFont?: (bold: boolean) => Promise<PDFFont>;
   image(id: string): Promise<PDFImage | null>;
   warn(msg: string): void;
   pageFonts(): Map<string, FontInfo>;
@@ -236,6 +254,61 @@ function drawWithOriginalFont(page: PDFPage, a: TextAnn, H: number, ctx: DrawCtx
   return true;
 }
 
+const ARABIC_DIGITS = /[\u0660-\u0669\u06F0-\u06F9]/;
+
+/**
+ * Draws text with the bundled Unicode font: Arabic is shaped (joined letters)
+ * and mixed Arabic/Latin/number lines are laid out in the right visual order.
+ */
+async function drawUnicodeText(page: PDFPage, a: TextAnn, H: number, ctx: DrawCtx): Promise<boolean> {
+  if (!ctx.unicodeFont) return false;
+  let f: PDFFont;
+  try {
+    f = await ctx.unicodeFont(a.bold);
+  } catch {
+    return false;
+  }
+  const supported = new Set(f.getCharacterSet());
+  const color = hexToRgb(a.color);
+  const rad = (a.angle * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  a.text.split('\n').forEach((raw, i) => {
+    let line = '';
+    for (const ch of raw) {
+      if (supported.has(ch.codePointAt(0)!) || ch === ' ') line += ch;
+      else {
+        line += '?';
+        ctx.warn('Some characters (for example emoji) are not in the built-in fonts and were replaced with "?".');
+      }
+    }
+    if (!line.trim()) return;
+    const oy = a.fontSize * (baselineOf(a) + i * LINE_HEIGHT);
+    // Baseline start of the line, then each run placed left to right along it.
+    const bx = a.x - oy * sin;
+    const by = a.y + oy * cos;
+    let cursor = 0;
+    for (const run of visualRuns(line)) {
+      // The shaping engine reverses anything in Arabic script; Arabic digits must stay left-to-right.
+      const text = !run.rtl && ARABIC_DIGITS.test(run.text) ? [...run.text].reverse().join('') : run.text;
+      const w = f.widthOfTextAtSize(text, a.fontSize);
+      if (text.trim()) {
+        page.drawText(text, {
+          x: bx + cursor * cos,
+          y: H - (by + cursor * sin),
+          size: a.fontSize,
+          font: f,
+          color,
+          opacity: a.opacity ?? 1,
+          rotate: degrees(-a.angle),
+        });
+      }
+      cursor += w;
+    }
+  });
+  return true;
+}
+
 /** Re-draws an image from the original file at its new position, without re-encoding it. */
 function drawOriginalImage(page: PDFPage, a: ImageAnn, H: number, ctx: DrawCtx): boolean {
   const src = a.source;
@@ -263,6 +336,7 @@ async function drawAnnotation(page: PDFPage, a: Annotation, H: number, ctx: Draw
   switch (a.type) {
     case 'text': {
       if (drawWithOriginalFont(page, a, H, ctx)) break;
+      if (needsUnicodeFont(a.text) && (await drawUnicodeText(page, a, H, ctx))) break;
       const f = await ctx.font(a);
       const supported = new Set(f.getCharacterSet());
       const color = hexToRgb(a.color);
@@ -328,6 +402,10 @@ async function drawAnnotation(page: PDFPage, a: Annotation, H: number, ctx: Draw
         borderOpacity: stroke ? opacity : undefined,
         blendMode: a.type === 'highlight' ? BlendMode.Multiply : undefined,
       });
+      if (a.type === 'whiteout' && a.patch) {
+        const img = await ctx.image(a.patch);
+        if (img) page.drawImage(img, { x: a.x, y: H - a.y - a.h, width: a.w, height: a.h, opacity });
+      }
       break;
     }
     case 'ellipse': {

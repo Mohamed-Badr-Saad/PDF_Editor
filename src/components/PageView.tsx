@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, useState } from 'react';
 import { Copy, Highlighter, MessageSquarePlus, Strikethrough, Underline } from 'lucide-react';
 import { useStore, uid, ocrKey } from '../state/store';
 import type { Annotation, ImageAnn, InkAnn, LineAnn, MarkupAnn, MarkupKind, NoteAnn, OcrLine, PageItem, RectAnn, TextAnn } from '../lib/types';
-import { BASELINE, NOTE_SIZE, annBox, baseToDisplay, displaySize, displayToBase, fullImageBox, isAnchored, moveAnn, resizeAnn, simplify, type Box } from '../lib/geometry';
+import { BASELINE, NOTE_SIZE, measureText, annBox, baseToDisplay, displaySize, displayToBase, fullImageBox, isAnchored, moveAnn, resizeAnn, simplify, type Box } from '../lib/geometry';
 import { getTextLayout, isOverText, selectAllText, selectBetween, selectLine, selectWord, type LayoutLine, type TextSelection } from '../lib/textLayout';
 import { applyCrop, startCrop } from '../lib/crop';
 import { renderPage } from '../lib/pdf';
@@ -12,6 +12,7 @@ import type { ImageTarget, PageAnalysis, TextSegment } from '../lib/content/page
 import { AnnotationShapes, NoteIcon } from './AnnotationShapes';
 import { fileComments, type RawFileComment } from '../lib/comments';
 import { TextEditor } from './TextEditor';
+import { makePaperPatch, warmPaperPatch } from '../lib/ocr/paperPatch';
 
 const EMPTY: Annotation[] = [];
 
@@ -246,10 +247,6 @@ export const PageView = memo(function PageView({ page, index }: Props) {
   /** Makes a recognised line of a scan editable: paper-coloured cover + new text on top. */
   const convertOcrLine = (line: OcrLine) => {
     const st = useStore.getState();
-    if (line.rtl) {
-      st.toast("Editing Arabic text from scans isn't supported yet. It's already searchable and copyable in the saved PDF.", 'error');
-      return;
-    }
     const rad = (line.angle * Math.PI) / 180;
     const cover: RectAnn = {
       id: uid('ann'),
@@ -271,13 +268,28 @@ export const PageView = memo(function PageView({ page, index }: Props) {
       text: line.text,
       fontSize: line.fontSize,
       font: 'Helvetica',
-      bold: false,
+      bold: !!line.bold,
       italic: false,
       color: line.fg,
       opacity: 1,
       angle: line.angle,
       ocrText: line.text,
     };
+    // Size the text so it spans the same width as the scanned line (line height alone
+    // overestimates Arabic, whose dots and descenders make lines tall).
+    const measured = measureText(text).w;
+    if (measured > 0 && Math.abs(line.angle) < 5) {
+      const fitted = (line.fontSize * line.box.w) / measured;
+      text.fontSize = Math.round(Math.min(line.fontSize * 1.25, Math.max(line.fontSize * 0.55, fitted)) * 10) / 10;
+      text.x = line.x + Math.sin(rad) * BASELINE.Helvetica * text.fontSize;
+      text.y = line.y - Math.cos(rad) * BASELINE.Helvetica * text.fontSize;
+    }
+    if (line.rtl) {
+      // Arabic reads from the right: line the new text up with the scan's right edge.
+      const shift = line.box.w - measureText(text).w;
+      text.x += shift * Math.cos(rad);
+      text.y += shift * Math.sin(rad);
+    }
     st.beginGesture();
     st.live((s) => ({
       ...s,
@@ -287,6 +299,15 @@ export const PageView = memo(function PageView({ page, index }: Props) {
     st.select({ pageId: page.id, annId: text.id });
     st.setEditingText(text.id);
     setHover(null);
+    // Swap the flat cover for one that keeps the scan's paper grain.
+    makePaperPatch(page, cover, line.fontSize)
+      .then((patch) => {
+        if (!patch) return;
+        const s = useStore.getState();
+        if (!(s.present.annotations[page.id] ?? []).some((a) => a.id === cover.id)) return;
+        s.updateAnnotation(page.id, cover.id, (a) => ({ ...a, patch }) as RectAnn, { live: true });
+      })
+      .catch(() => {});
   };
 
   /** Lifts an image out of the page so it can be moved, resized, replaced or deleted. */
@@ -532,7 +553,10 @@ export const PageView = memo(function PageView({ page, index }: Props) {
         const [x, y] = toBase(e);
         const hit = onAnn ? null : hitTarget(x, y);
         const id = hit ? (hit.kind === 'text' ? hit.seg.id : hit.kind === 'ocr' ? hit.line.id : hit.img.id) : null;
-        if (id !== hover) setHover(id);
+        if (id !== hover) {
+          setHover(id);
+          if (hit?.kind === 'ocr') warmPaperPatch(page);
+        }
       }
       return;
     }

@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import { FilePlus2, Upload } from 'lucide-react';
+import { Download, FilePlus2, Upload } from 'lucide-react';
 import { ACCEPT_ALL, importFiles, pickFiles } from '../lib/importFiles';
 import { insertBlankPage } from '../lib/actions';
 import { useStore } from '../state/store';
 import { Logo } from './Logo';
+import { installApp, isDesktopApp, useInstall } from '../lib/install';
+
+// Phones and tablets can't drag files in, so the copy talks about picking them.
+const touch = typeof window !== 'undefined' && window.matchMedia?.('(hover: none) and (pointer: coarse)').matches;
 
 const FEATURES: [string, string][] = [
   ['Fill and sign', 'Type on any page, draw or upload your signature, and place it anywhere.'],
@@ -54,7 +58,8 @@ export function Welcome() {
           <div className="drop-fold" aria-hidden />
           <div className="drop-content">
             <Upload size={34} strokeWidth={1.6} />
-            <p className="drop-title">{busy ?? 'Drop a PDF or images here'}</p>
+            <p className="drop-title">{busy ?? (touch ? 'Open a PDF or images' : 'Drop a PDF or images here')}</p>
+            {!busy && <p className="drop-sub">{touch ? 'Pick' : 'Drop'} several files to combine them into one PDF.</p>}
             <button
               className="btn btn-primary btn-lg"
               disabled={!!busy}
@@ -71,7 +76,28 @@ export function Welcome() {
           </div>
         </div>
       </main>
-      <footer className="welcome-foot">PageCraft is free. Install it from your browser's address bar to use it like a desktop app.</footer>
+      <InstallFooter />
     </div>
+  );
+}
+
+function InstallFooter() {
+  const install = useInstall();
+  if (isDesktopApp()) return <footer className="welcome-foot">PageCraft is free and works fully offline.</footer>;
+  return (
+    <footer className="welcome-foot">
+      {install === 'prompt' ? (
+        <>
+          <button className="btn install-btn" onClick={() => installApp()}>
+            <Download size={16} /> Install PageCraft
+          </button>
+          <span>Opens like an app and works offline.</span>
+        </>
+      ) : install === 'ios' ? (
+        <span>To install on iPhone or iPad, tap Share, then Add to Home Screen. It then works offline.</span>
+      ) : (
+        <span>PageCraft is free and works offline once loaded.</span>
+      )}
+    </footer>
   );
 }

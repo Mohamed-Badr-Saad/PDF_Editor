@@ -3,6 +3,7 @@ import { PDFArray, PDFDict, PDFDocument, PDFPage } from 'pdf-lib';
 import { apply, interpretContent, invert, mul, type Glyph, type Matrix, type PageContent } from './interpret';
 import { streamBytes, type FontInfo } from './fonts';
 import type { FontFamily } from '../types';
+import { hasRtl, visualToLogical } from '../bidi';
 
 /**
  * Maps base space (y up, origin bottom-left of the page as displayed with its
@@ -144,12 +145,16 @@ export function analyzePage(page: PDFPage, baseHeight: number): PageAnalysis {
   const segments: TextSegment[] = [];
   let cur: Glyph[] = [];
   let curText = '';
+  let curUnits: string[] = [];
   const flush = () => {
     if (!cur.length) return;
-    const text = curText.replace(/\s+$/, '').replace(/^\s+/, '');
+    let text = curText.replace(/\s+$/, '').replace(/^\s+/, '');
+    // Arabic is stored in drawing (visual) order: turn it back into reading order.
+    if (hasRtl(text)) text = visualToLogical(curUnits);
     if (text) segments.push(buildSegment(cur, text));
     cur = [];
     curText = '';
+    curUnits = [];
   };
 
   const buildSegment = (gl: Glyph[], text: string): TextSegment => {
@@ -250,10 +255,12 @@ export function analyzePage(page: PDFPage, baseHeight: number): PageAnalysis {
         flush();
       } else if (along > 0.18 * ps && !/\s$/.test(curText) && g.uni !== ' ') {
         curText += ' ';
+        curUnits.push(' ');
       }
     }
     cur.push(g);
-    curText += g.uni ?? '�';
+    curText += g.uni ?? '\uFFFD';
+    curUnits.push(g.uni ?? '\uFFFD');
   }
   flush();
 

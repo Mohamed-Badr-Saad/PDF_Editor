@@ -1,6 +1,8 @@
 import { memo } from 'react';
 import type { Annotation, StoredImage } from '../lib/types';
-import { LINE_HEIGHT, NOTE_SIZE, arrowHead, arrowShaftEnd, baselineOf, cssFontFamily, fullImageBox, inkPath, measureText } from '../lib/geometry';
+import { LINE_HEIGHT, NOTE_SIZE, arrowHead, arrowShaftEnd, baselineOf, fontStackOf, fullImageBox, inkPath, measureText } from '../lib/geometry';
+import { baseDirection } from '../lib/bidi';
+import { useStore } from '../state/store';
 
 interface Props {
   annotations: Annotation[];
@@ -17,6 +19,7 @@ interface Props {
 /** Pure SVG rendering of annotations in base-space coordinates. */
 export const AnnotationShapes = memo(function AnnotationShapes({ annotations, images, hiddenId, interactive, ghostId, scale }: Props) {
   const hitWidth = 12 / scale;
+  useStore((s) => s.fontsReady); // re-measure once the Unicode font arrives
   return (
     <>
       {annotations.map((a) => {
@@ -35,19 +38,23 @@ export const AnnotationShapes = memo(function AnnotationShapes({ annotations, im
               ) : null;
             }
             const base = baselineOf(a);
+            // Right-to-left lines (Arabic) start at their right edge ("start" is the right side in RTL).
+            const rtl = baseDirection(a.text) === 'rtl';
             return (
               <g key={a.id} {...common} opacity={a.id === ghostId ? 0.55 : a.opacity} transform={transform}>
                 {interactive && <rect x={a.x} y={a.y} width={w} height={h} fill="transparent" />}
                 <text
                   fill={a.color}
-                  fontFamily={cssFontFamily[a.font]}
+                  direction={rtl ? 'rtl' : undefined}
+                  textAnchor={rtl ? 'start' : undefined}
+                  fontFamily={fontStackOf(a)}
                   fontSize={a.fontSize}
                   fontWeight={a.bold ? 700 : 400}
                   fontStyle={a.italic ? 'italic' : 'normal'}
                   style={{ whiteSpace: 'pre' }}
                 >
                   {a.text.split('\n').map((line, i) => (
-                    <tspan key={i} x={a.x} y={a.y + a.fontSize * (base + i * LINE_HEIGHT)}>
+                    <tspan key={i} x={rtl ? a.x + w : a.x} y={a.y + a.fontSize * (base + i * LINE_HEIGHT)}>
                       {line || ' '}
                     </tspan>
                   ))}
@@ -64,9 +71,17 @@ export const AnnotationShapes = memo(function AnnotationShapes({ annotations, im
               </g>
             );
           }
+          case 'whiteout':
+            if (a.patch && images[a.patch])
+              return (
+                <g key={a.id} {...common}>
+                  <rect x={a.x} y={a.y} width={a.w} height={a.h} fill={a.fill ?? '#ffffff'} />
+                  <image href={images[a.patch].url} x={a.x} y={a.y} width={a.w} height={a.h} preserveAspectRatio="none" />
+                </g>
+              );
+          // falls through
           case 'rect':
           case 'highlight':
-          case 'whiteout':
             return (
               <rect
                 key={a.id}

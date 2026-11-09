@@ -87,6 +87,10 @@ export interface OcrLine {
   /** Paper colour around the line and ink colour of the letters (sampled from the scan). */
   bg: string;
   fg: string;
+  /** Heavy strokes in the scan (edited text is set in bold to match). */
+  bold?: boolean;
+  /** Measured stroke thickness / font size. */
+  stroke?: number;
   confidence: number;
   rtl: boolean;
 }
@@ -94,6 +98,8 @@ export interface OcrLine {
 export interface OcrPage {
   lang: string;
   lines: OcrLine[];
+  /** Tesseract's page confidence (0–100). */
+  confidence?: number;
 }
 
 export interface TextAnn extends AnnBase {
@@ -131,6 +137,8 @@ export interface RectAnn extends AnnBase {
   stroke: string | null;
   fill: string | null;
   strokeWidth: number;
+  /** Cover only: picture of the bare paper (scan grain kept, letters removed). */
+  patch?: string;
 }
 
 export interface LineAnn extends AnnBase {

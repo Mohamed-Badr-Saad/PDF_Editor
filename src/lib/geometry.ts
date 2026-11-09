@@ -49,6 +49,26 @@ export const cssFontFamily: Record<FontFamily, string> = {
   Courier: '"Courier New", Courier, "Liberation Mono", monospace',
 };
 
+/** Web font with the same file used when saving, so the editor matches the PDF. */
+export const UNICODE_FONT = '"PageCraft Arabic"';
+
+// Characters the 14 standard PDF fonts (WinAnsi) can print.
+const WIN_ANSI_EXTRA = new Set([...'€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ']);
+/** True when text needs the bundled Unicode font (Arabic, Hebrew, Greek…). */
+export function needsUnicodeFont(text: string): boolean {
+  for (const ch of text) {
+    const c = ch.codePointAt(0)!;
+    if (c === 10 || c === 13 || (c >= 32 && c <= 126) || (c >= 160 && c <= 255) || WIN_ANSI_EXTRA.has(ch)) continue;
+    return true;
+  }
+  return false;
+}
+
+/** CSS font stack for a text item (the Unicode font first when it will be used to save). */
+export function fontStackOf(a: { font: FontFamily; text: string }): string {
+  return needsUnicodeFont(a.text) ? `${UNICODE_FONT}, ${cssFontFamily[a.font]}` : cssFontFamily[a.font];
+}
+
 export const LINE_HEIGHT = 1.2;
 /** Distance from the top of a line box to the baseline, as a fraction of font size. */
 export const BASELINE: Record<FontFamily, number> = { Helvetica: 0.93, Times: 0.92, Courier: 0.87 };
@@ -68,8 +88,9 @@ export function usesOriginalFont(a: TextAnn): boolean {
 
 let measureCtx: CanvasRenderingContext2D | null = null;
 
-export function cssFont(a: Pick<TextAnn, 'font' | 'fontSize' | 'bold' | 'italic'>, size = a.fontSize) {
-  return `${a.italic ? 'italic ' : ''}${a.bold ? 'bold ' : ''}${size}px ${cssFontFamily[a.font]}`;
+export function cssFont(a: Pick<TextAnn, 'font' | 'fontSize' | 'bold' | 'italic'> & { text?: string }, size = a.fontSize) {
+  const stack = a.text !== undefined ? fontStackOf({ font: a.font, text: a.text }) : cssFontFamily[a.font];
+  return `${a.italic ? 'italic ' : ''}${a.bold ? 'bold ' : ''}${size}px ${stack}`;
 }
 
 export function measureText(a: Pick<TextAnn, 'font' | 'fontSize' | 'bold' | 'italic' | 'text'> & { source?: TextAnn['source'] }): { w: number; h: number } {

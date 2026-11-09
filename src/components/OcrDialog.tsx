@@ -5,10 +5,12 @@ import { useStore } from '../state/store';
 import { OCR_LANGS, ocrPlainText, runOcr, type OcrLang, type OcrProgress, type OcrRun } from '../lib/ocr/recognize';
 import { getAnalysis } from '../lib/content/editorBridge';
 import type { PageItem } from '../lib/types';
+import { formatPageList, usePendingScans } from '../lib/scanDetect';
 
-const LANG_KEY = 'pagecraft.ocrLang';
+// v2: earlier versions defaulted to English, which reads Arabic scans as junk.
+const LANG_KEY = 'pagecraft.ocrLang.v2';
 
-type Scope = 'all' | 'current' | 'selected';
+type Scope = 'scanned' | 'all' | 'current' | 'selected';
 
 export function OcrDialog({ onClose }: { onClose(): void }) {
   const pages = useStore((s) => s.present.pages);
@@ -16,15 +18,17 @@ export function OcrDialog({ onClose }: { onClose(): void }) {
   const activeId = useStore((s) => s.activePageId);
   const [lang, setLang] = useState<OcrLang>(() => {
     try {
-      return (localStorage.getItem(LANG_KEY) as OcrLang) || 'eng';
+      const saved = localStorage.getItem(LANG_KEY) as OcrLang | null;
+      return saved && ['auto', 'eng', 'ara'].includes(saved) ? saved : 'auto';
     } catch {
-      return 'eng';
+      return 'auto';
     }
   });
-  const [scope, setScope] = useState<Scope>(selected.length > 1 ? 'selected' : pages.length > 1 ? 'all' : 'current');
+  const pending = usePendingScans();
+  const [scope, setScope] = useState<Scope>(pending.length ? 'scanned' : selected.length > 1 ? 'selected' : pages.length > 1 ? 'all' : 'current');
   const [skipText, setSkipText] = useState(true);
   const [progress, setProgress] = useState<OcrProgress | null>(null);
-  const [done, setDone] = useState<{ pages: PageItem[]; lines: number; skipped: number } | null>(null);
+  const [done, setDone] = useState<{ pages: PageItem[]; lines: number; skipped: number; hard: string[] } | null>(null);
   const run = useRef<OcrRun | null>(null);
 
   useEffect(() => () => run.current?.cancel(), []);
@@ -36,13 +40,15 @@ export function OcrDialog({ onClose }: { onClose(): void }) {
       /* not remembered */
     }
     let target =
-      scope === 'all'
+      scope === 'scanned'
+        ? pending
+        : scope === 'all'
         ? pages
         : scope === 'selected'
           ? pages.filter((p) => selected.includes(p.id))
           : pages.filter((p) => p.id === (activeId ?? pages[0]?.id));
     let skipped = 0;
-    if (skipText) {
+    if (skipText && scope !== 'scanned') {
       setProgress({ pageIndex: 0, pageCount: target.length, progress: 0, status: 'Checking which pages are scans…' });
       const keep: PageItem[] = [];
       for (const p of target) {
@@ -55,13 +61,13 @@ export function OcrDialog({ onClose }: { onClose(): void }) {
     }
     if (!target.length) {
       setProgress(null);
-      setDone({ pages: [], lines: 0, skipped });
+      setDone({ pages: [], lines: 0, skipped, hard: [] });
       return;
     }
     run.current = runOcr(target, lang, setProgress);
     try {
       const r = await run.current.promise;
-      setDone({ pages: target, lines: r.lines, skipped });
+      setDone({ pages: target, lines: r.lines, skipped, hard: r.hardPages });
     } catch (err) {
       console.error(err);
       if (run.current) useStore.getState().toast(`Text recognition failed: ${err instanceof Error ? err.message : err}`, 'error');
@@ -127,6 +133,12 @@ export function OcrDialog({ onClose }: { onClose(): void }) {
               Found {done.lines} line{done.lines === 1 ? '' : 's'} of text on {done.pages.length} page{done.pages.length === 1 ? '' : 's'}.
               {done.skipped > 0 && ` ${done.skipped} page${done.skipped === 1 ? '' : 's'} already had text and ${done.skipped === 1 ? 'was' : 'were'} skipped.`}
             </p>
+            {done.hard.length > 0 && (
+              <p className="notice">
+                Page{done.hard.length === 1 ? '' : 's'} {formatPageList(done.hard.map((id) => pages.findIndex((p) => p.id === id) + 1))} {done.hard.length === 1 ? 'was' : 'were'} hard
+                to read, so some words may be wrong. A sharper scan (300 dpi or more, straight and well lit) gives better results.
+              </p>
+            )}
             <ul className="dialog-list">
               <li>The saved PDF will be searchable, and its text can be selected and copied in any PDF reader.</li>
               <li>To change the text, use the Edit tool (E) and click a line.</li>
@@ -178,17 +190,26 @@ export function OcrDialog({ onClose }: { onClose(): void }) {
       <p className="dialog-text">Turns scanned pages and photos into text you can search, copy and edit.</p>
       <label className="field">
         <span className="field-label">Language of the document</span>
-        <select value={lang} onChange={(e) => setLang(e.target.value as OcrLang)}>
+        <select value={lang} onChange={(e) => setLang(e.target.value as OcrLang)} aria-describedby="ocr-lang-hint">
           {OCR_LANGS.map((l) => (
             <option key={l.id} value={l.id}>
               {l.label}
             </option>
           ))}
         </select>
+        <span id="ocr-lang-hint" className="hint">
+          Automatic works for English, Arabic and mixed documents. Pages that read badly are retried in the other language.
+        </span>
       </label>
       <div className="field">
         <span className="field-label">Pages</span>
         <div className="radio-row">
+          {pending.length > 0 && (
+            <label className="check">
+              <input type="radio" name="ocr-scope" checked={scope === 'scanned'} onChange={() => setScope('scanned')} /> Scanned pages (
+              {formatPageList(pending.map((p) => pages.indexOf(p) + 1))})
+            </label>
+          )}
           <label className="check">
             <input type="radio" name="ocr-scope" checked={scope === 'all'} onChange={() => setScope('all')} /> All ({pages.length})
           </label>
@@ -202,10 +223,12 @@ export function OcrDialog({ onClose }: { onClose(): void }) {
           )}
         </div>
       </div>
-      <label className="check">
-        <input type="checkbox" checked={skipText} onChange={(e) => setSkipText(e.target.checked)} />
-        Skip pages that already contain text
-      </label>
+      {scope !== 'scanned' && (
+        <label className="check">
+          <input type="checkbox" checked={skipText} onChange={(e) => setSkipText(e.target.checked)} />
+          Skip pages that already contain text
+        </label>
+      )}
     </Modal>
   );
 }

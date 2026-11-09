@@ -2,7 +2,7 @@
 
 A free PDF editor that runs entirely in the browser. Files are never uploaded; all processing happens on the user's device. After the first visit it also works offline, and it can be installed like a desktop app (PWA).
 
-## Features (v0.3)
+## Features (v0.5)
 
 **Edit the PDF's own content** (Edit tool, key E)
 - Click any line of text in the PDF to retype it. The old text is removed from the file itself (not covered up), so it's gone when the PDF is copied, searched or opened elsewhere
@@ -13,10 +13,16 @@ A free PDF editor that runs entirely in the browser. Files are never uploaded; a
 - Everything is undoable and previewed exactly as it will be saved
 
 **Scanned documents (OCR)**
-- Document → Recognize text (OCR): reads scanned pages and photos in English, Arabic, or both. Runs on the device; the reading engine downloads once (about 8 MB) and then works offline
+- Scanned pages are detected as soon as a document opens, and a bar offers to recognize them (also the OCR button in the top bar)
+- Reads scans and photos in English and Arabic. Automatic mode reads mostly-Arabic pages a second time in Arabic only, which avoids Latin junk in Arabic text. Any page that reads badly (low confidence) is retried in the other language, so even "English only" handles an Arabic page. Runs on the device; the reading engine downloads once (about 8 MB) and then works offline
 - The saved PDF gets an invisible text layer, so it's searchable and its text can be selected and copied in any reader
-- Recognized lines can be edited with the Edit tool: the new text is drawn over the scan on a patch of the paper's own color
+- Recognized lines can be edited with the Edit tool. The new text keeps the scan's ink color and weight (bold is detected), and the old words are hidden by a patch made from the surrounding paper, grain included, so the edit blends in. Lines that sit in separate columns (like "Bill to" and "From") are edited separately
 - Copy the recognized text or save it as a .txt file
+
+**Arabic**
+- Type Arabic anywhere (text boxes, edited lines, comments). Letters are joined and lines with Arabic, English and numbers are laid out correctly, using the bundled Noto Sans Arabic font (OFL), on screen and in the saved PDF
+- Edit Arabic text in PDFs and in recognized scans; the right edge stays in place, as Arabic readers expect
+- Arabic text from PDFs is converted to reading order for editing, copying and Find
 
 **Comments and review**
 - The default Select tool (V) selects text: drag across it to highlight, underline or strike it out, attach a note, or copy it (also Ctrl+C). Double-click selects a word, triple-click a line, Ctrl+A the whole page. Works on scans after OCR too
@@ -41,8 +47,9 @@ A free PDF editor that runs entirely in the browser. Files are never uploaded; a
 - Undo/redo for everything
 
 **Organize**
-- Open several PDFs and images at once to merge them
-- Drag thumbnails to reorder; rotate, duplicate, delete, insert blank pages
+- Open several PDFs and images at once to merge them, or drag more PDFs onto the window to add their pages (after the page you drop them on)
+- Drag images onto a page to place them exactly where you drop them
+- Drag thumbnails to reorder. The bar at the top of the pages panel rotates, duplicates, deletes or inserts a blank page for the current page, or for all selected pages (Shift/Ctrl-click thumbnails to select several)
 - Extract selected pages to a new PDF, split into single pages, save pages as PNG
 - Images (JPG, PNG, WebP…) become PDF pages
 - Password-protected PDFs open after the user enters the password
@@ -51,7 +58,7 @@ A free PDF editor that runs entirely in the browser. Files are never uploaded; a
 - Edits are written into the PDF itself, so they show up in any PDF reader
 - Works on rotated pages and pages with unusual crop boxes
 - Paste an image from the clipboard onto the current page
-- Installable app with offline support and "Open with" for PDF files
+- Fold the pages panel and the side panel away (buttons in the top bar, or `[` and `]`) to give the page more room
 
 ## Keyboard shortcuts
 
@@ -61,6 +68,7 @@ A free PDF editor that runs entirely in the browser. Files are never uploaded; a
 | Ctrl+C, Ctrl+X, Ctrl+V | Copy selected text or item, cut an item, paste (items, images, or text as a new text box) |
 | Ctrl+A | Select all text on the current page |
 | Ctrl+F | Find |
+| [ / ] | Hide or show the pages panel / the side panel (more room for the page) |
 | Page Up / Page Down, Home / End | Previous / next page, first / last page |
 | P / H / M | Pen / Highlighter / Highlight area |
 | R / O / L / A | Rectangle / Ellipse / Line / Arrow |
@@ -91,12 +99,41 @@ npm run preview    # serve the production build locally
 
 The build output in `dist/` is a static site, so any free static host works:
 
-- **GitHub Pages:** push this folder to a GitHub repository, then go to Settings → Pages → Source and choose "GitHub Actions". The included workflow (`.github/workflows/deploy.yml`) builds and publishes on every push to `main`.
+- **GitHub Pages:** push this folder to a GitHub repository, then go to Settings → Pages → Source and choose "GitHub Actions". The included workflow (`.github/workflows/deploy.yml`) builds and publishes on every push to `main`. For this repository the address will be https://mohamed-badr-saad.github.io/PDF_Editor/
 - **Netlify / Cloudflare Pages / Vercel:** connect the repository, use build command `npm run build` and output folder `dist`.
 
-## Offline / desktop version
+## Phone and tablet app (PWA)
 
-The app is a Progressive Web App. After visiting the site once in Chrome or Edge, users can click the install icon in the address bar to get a desktop app with its own window and Start-menu entry. It then works fully offline. A native installer (`.exe`) can be added later with [Tauri](https://tauri.app), wrapping this same code.
+Once the site is online over HTTPS (GitHub Pages does this), it installs like an app:
+
+- **Android (Chrome, Edge, Samsung Internet):** tap "Install PageCraft" at the bottom of the start screen or in the Document menu (or the browser's "Install app" / "Add to Home screen").
+- **iPhone / iPad (Safari):** tap Share, then "Add to Home Screen". The start screen shows this hint on iOS.
+- **Windows / Mac (Chrome, Edge):** the same Install button, or the install icon in the address bar.
+
+The installed app opens in its own window and works offline; the OCR engine is stored the first time OCR is used.
+
+On phones the layout adapts: a compact top bar that always shows Save, the pages panel and the side panel slide in as drawers (buttons at the left and right of the top bar), swipe to scroll, pinch to zoom, and drawing tools take the finger for drawing.
+
+## Desktop app (Windows, Mac, Linux)
+
+The `desktop/` folder wraps the same app with [Electron](https://www.electronjs.org) into a program that runs fully offline, with no browser needed. It can be set as the app that opens PDF files ("Open with PageCraft"), and Save asks where to save the file.
+
+**Easiest: let GitHub build it.** Push the project, then GitHub → Actions → "Build desktop app" → Run workflow. When it finishes, download the files from the run's Artifacts. Pushing a version tag (`git tag v0.5.0` then `git push --tags`) also attaches them to a GitHub Release that anyone can download. The workflow is in `.github/workflows/desktop.yml`.
+
+**On your own computer:**
+
+```bash
+npm run desktop       # build and open the desktop app
+npm run desktop:win   # build the Windows installer and portable .exe into desktop/release/
+```
+
+Each operating system builds its own files most reliably (Windows builds the `.exe`, a Mac builds the `.dmg`, Linux the `.AppImage`/`.deb`), which is why the GitHub workflow uses one machine of each.
+
+Windows outputs:
+- `PageCraft-Setup-<version>.exe`: installer with Start-menu shortcut, uninstaller and the "Open with" entry for PDFs
+- `PageCraft-<version>-portable.exe`: a single file that runs without installing (handy on a USB stick)
+
+The builds are not code-signed (a certificate costs money), so Windows SmartScreen may say "Windows protected your PC" the first time: click "More info", then "Run anyway". On a Mac, right-click the app and choose Open the first time.
 
 ## How it works
 
@@ -107,6 +144,7 @@ The app is a Progressive Web App. After visiting the site once in Chrome or Edge
 | Rendering | pdf.js (Mozilla) | Draws pages to canvas |
 | Saving | pdf-lib | Copies the original pages and draws the edits into them |
 | OCR | tesseract.js | Text recognition in a web worker (English and Arabic data bundled) |
+| Arabic text | @pdf-lib/fontkit + Noto Sans Arabic | Letter joining when saving; `src/lib/bidi.ts` orders mixed Arabic/English lines |
 | Offline | vite-plugin-pwa (Workbox) | Service worker and install manifest |
 
 Key files:
@@ -122,10 +160,11 @@ Key files:
 ## Known limitations / roadmap
 
 - **Editing works line by line.** Text doesn't re-wrap across lines like a word processor yet (paragraph reflow is the next step for the Edit tool).
-- **OCR accuracy** depends on scan quality. Arabic recognition is noticeably less accurate than English. Editing recognized Arabic lines isn't supported yet (they're searchable and copyable).
+- **OCR accuracy** depends on scan quality. Arabic recognition is less accurate than English (occasional wrong letters).
+- Copying Arabic out of a saved PDF in some readers can change a few letters, because joined letter shapes map back to text imperfectly; what's printed on the page is correct.
 - Text and images inside "form XObjects" (used by some design tools and stamps) aren't editable yet; most PDFs from Word, Google Docs, LibreOffice and browsers draw directly on the page and work.
 - Fonts in PDFs are usually *subsets* (only the letters used). Typing a letter the file never used switches that line to a similar standard font.
-- **Arabic, other non-Latin scripts and emoji** in added text are replaced with "?" when saving, because the 14 built-in PDF fonts are Latin-only. (Edited text in the original font works for any script the file's font already contains.) Next step: bundle a Unicode font (for example Noto Sans Arabic) with right-to-left shaping.
+- Scripts other than Latin and Arabic (e.g. Chinese) and emoji in added text are replaced with "?" when saving.
 - **White-out is visual only**: use the Edit tool to truly delete text. A dedicated redaction tool (areas, search-and-redact) is planned.
 - **Fillable form fields** cannot be filled in directly yet (use the Text tool on top of them). Interactive fields in the original file may lose their interactivity when saved.
 - Encrypted PDFs that pdf-lib can't read are saved with those pages as images.

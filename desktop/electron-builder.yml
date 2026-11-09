@@ -1,0 +1,44 @@
+appId: app.pagecraft.desktop
+productName: PageCraft
+copyright: Free software
+# No auto-update server: skip update metadata (latest.yml).
+publish: null
+directories:
+  output: release
+  buildResources: build
+files:
+  - main.cjs
+  - preload.cjs
+  - app/**
+  - build/icon.png
+fileAssociations:
+  - ext: pdf
+    name: PDF document
+    description: PDF document
+    role: Editor
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: PageCraft-Setup-${version}.exe
+  shortcutName: PageCraft
+portable:
+  artifactName: PageCraft-${version}-portable.exe
+mac:
+  target:
+    - target: dmg
+      arch: [universal]
+  category: public.app-category.productivity
+  artifactName: PageCraft-${version}.dmg
+linux:
+  target: [AppImage, deb]
+  category: Office
+  artifactName: PageCraft-${version}.${ext}
+  maintainer: PageCraft
