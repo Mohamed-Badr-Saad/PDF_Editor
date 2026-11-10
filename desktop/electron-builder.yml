@@ -6,6 +6,8 @@ publish: null
 directories:
   output: release
   buildResources: build
+# Only the browser language files PageCraft needs (smaller download, faster install).
+electronLanguages: [en-US, ar]
 files:
   - main.cjs
   - preload.cjs
