@@ -9,6 +9,7 @@ import { PropertiesPanel } from './components/PropertiesPanel';
 import { SignatureModal } from './components/SignatureModal';
 import { PageNumbersDialog, WatermarkDialog } from './components/ToolDialogs';
 import { AboutDialog } from './components/AboutDialog';
+import { StatusBar } from './components/StatusBar';
 import { OcrDialog } from './components/OcrDialog';
 import { CommentsPanel } from './components/CommentsPanel';
 import { FindBar } from './components/FindBar';
@@ -374,6 +375,7 @@ export default function App() {
           />
         )}
       </div>
+      <StatusBar />
       {drag && (
         <>
           {drag.pageId && <style>{`.page[data-page-id="${drag.pageId}"]{outline:3px solid var(--marker);outline-offset:4px}`}</style>}

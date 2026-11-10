@@ -1972,3 +1972,59 @@ circle.sel-handle {
   border-top: 1px solid var(--line-soft);
   width: 100%;
 }
+
+/* ---------- Status bar (under the editor) ---------- */
+.statusbar {
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.status-privacy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status-privacy svg {
+  color: var(--cobalt);
+  flex-shrink: 0;
+}
+.status-credit {
+  flex-wrap: nowrap;
+  gap: 0.6rem;
+  font-size: var(--fs-xs);
+}
+.status-credit .credit-links {
+  gap: 0.2rem;
+}
+.status-credit .credit-links a {
+  padding: 0.1rem 0.5rem;
+  border-color: transparent;
+  background: transparent;
+  color: var(--cobalt);
+}
+.status-credit .credit-links a:hover {
+  border-color: var(--line);
+  background: var(--desk);
+}
+@media (max-width: 600px) {
+  .statusbar {
+    height: 28px;
+    padding: 0 0.5rem;
+    justify-content: center;
+  }
+  .status-privacy,
+  .status-credit .credit-dev {
+    display: none;
+  }
+}
