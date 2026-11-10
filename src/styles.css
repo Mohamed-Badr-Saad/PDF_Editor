@@ -145,6 +145,10 @@ kbd {
 }
 .welcome-head {
   padding: 1.25rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 .welcome-head .logo-word {
   color: var(--ink);
@@ -268,7 +272,7 @@ kbd {
   color: var(--ink);
 }
 .welcome-foot {
-  padding: 1rem 2rem 0.5rem;
+  padding: 1rem 2rem 1.5rem;
   font-size: var(--fs-sm);
   color: var(--muted);
   text-align: center;
@@ -1908,8 +1912,38 @@ circle.sel-handle {
   outline: 2px solid var(--cobalt);
   outline-offset: 2px;
 }
-.welcome-credit {
-  padding: 0 2rem 1.5rem;
+.head-credit {
+  justify-content: flex-end;
+  font-size: var(--fs-md);
+  white-space: nowrap;
+}
+.head-credit .credit-links a {
+  padding: 0.3rem 0.8rem;
+}
+@media (max-width: 350px) {
+  .head-credit .credit-label {
+    display: none;
+  }
+}
+/* Phones: keep the name and both links on one line next to the logo. */
+@media (max-width: 600px) {
+  .welcome-head {
+    padding: 0.9rem 1rem;
+  }
+  .head-credit {
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+    font-size: var(--fs-xs);
+  }
+  .head-credit .credit-links {
+    gap: 0.25rem;
+  }
+  .head-credit .credit-dev {
+    display: none;
+  }
+  .head-credit .credit-links a {
+    padding: 0.25rem 0.5rem;
+  }
 }
 .about {
   display: flex;

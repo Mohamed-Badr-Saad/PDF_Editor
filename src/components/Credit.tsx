@@ -6,14 +6,15 @@ export function Credit({ className = '' }: { className?: string }) {
   return (
     <p className={`credit ${className}`}>
       <span>
-        Developed by <strong>{AUTHOR}</strong>
+        <span className="credit-dev">Developed by </span>
+        <strong>{AUTHOR}</strong>
       </span>
       <span className="credit-links">
-        <a href={PORTFOLIO_URL} target="_blank" rel="noopener noreferrer">
-          <Globe size={14} aria-hidden /> Portfolio
+        <a href={PORTFOLIO_URL} target="_blank" rel="noopener noreferrer" aria-label={`${AUTHOR}'s portfolio`} title="Portfolio">
+          <Globe size={14} aria-hidden /> <span className="credit-label">Portfolio</span>
         </a>
-        <a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer">
-          <BriefcaseBusiness size={14} aria-hidden /> LinkedIn
+        <a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" aria-label={`${AUTHOR} on LinkedIn`} title="LinkedIn">
+          <BriefcaseBusiness size={14} aria-hidden /> <span className="credit-label">LinkedIn</span>
         </a>
       </span>
     </p>

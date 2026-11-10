@@ -25,6 +25,7 @@ export function Welcome() {
     <div className="welcome">
       <header className="welcome-head">
         <Logo />
+        <Credit className="head-credit" />
       </header>
       <main className="welcome-main">
         <div className="welcome-copy">
@@ -78,7 +79,6 @@ export function Welcome() {
         </div>
       </main>
       <InstallFooter />
-      <Credit className="welcome-credit" />
     </div>
   );
 }
