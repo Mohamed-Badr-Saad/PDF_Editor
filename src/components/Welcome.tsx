@@ -4,6 +4,7 @@ import { ACCEPT_ALL, importFiles, pickFiles } from '../lib/importFiles';
 import { insertBlankPage } from '../lib/actions';
 import { useStore } from '../state/store';
 import { Logo } from './Logo';
+import { Credit } from './Credit';
 import { installApp, isDesktopApp, useInstall } from '../lib/install';
 
 // Phones and tablets can't drag files in, so the copy talks about picking them.
@@ -77,6 +78,7 @@ export function Welcome() {
         </div>
       </main>
       <InstallFooter />
+      <Credit className="welcome-credit" />
     </div>
   );
 }

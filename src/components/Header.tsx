@@ -9,6 +9,7 @@ import {
   FilePlus2,
   FolderOpen,
   Hash,
+  Info,
   Maximize2,
   Menu,
   MonitorDown,
@@ -164,6 +165,7 @@ export function Header({ onWatermark, onPageNumbers }: Props) {
             {item(<Scissors size={16} />, 'Split into single pages', splitAllPages)}
             {item(<FileSpreadsheet size={16} />, 'Export notes to CSV', exportCommentsCsv)}
             {install === 'prompt' && item(<MonitorDown size={16} />, 'Install PageCraft as an app', () => installApp())}
+            {item(<Info size={16} />, 'About PageCraft', () => st().openDialog('about'))}
             <div className="menu-sep" />
             {item(<X size={16} />, 'Close document', () => {
               if (!st().dirty || confirm('Close without saving your changes?')) st().reset();

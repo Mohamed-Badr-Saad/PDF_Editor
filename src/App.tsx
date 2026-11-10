@@ -8,6 +8,7 @@ import { Viewer } from './components/Viewer';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { SignatureModal } from './components/SignatureModal';
 import { PageNumbersDialog, WatermarkDialog } from './components/ToolDialogs';
+import { AboutDialog } from './components/AboutDialog';
 import { OcrDialog } from './components/OcrDialog';
 import { CommentsPanel } from './components/CommentsPanel';
 import { FindBar } from './components/FindBar';
@@ -309,6 +310,7 @@ export default function App() {
       {dialog === 'watermark' && <WatermarkDialog onClose={() => setDialog(null)} />}
       {dialog === 'pagenumbers' && <PageNumbersDialog onClose={() => setDialog(null)} />}
       {dialog === 'ocr' && <OcrDialog onClose={() => setDialog(null)} />}
+      {dialog === 'about' && <AboutDialog onClose={() => setDialog(null)} />}
       <Tooltip />
       <div className="toasts" role="status" aria-live="polite">
         {toasts.map((t) => (

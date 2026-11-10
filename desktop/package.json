@@ -3,7 +3,10 @@
   "productName": "PageCraft",
   "version": "0.5.0",
   "description": "Free PDF editor that works offline. Edit text and images, sign, OCR, merge and organize PDFs.",
-  "author": "PageCraft",
+  "author": {
+    "name": "Mohamed Badr",
+    "url": "https://mohamed-badr-nine.vercel.app/"
+  },
   "license": "MIT",
   "private": true,
   "main": "main.cjs",

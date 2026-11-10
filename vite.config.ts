@@ -1,8 +1,12 @@
 import { defineConfig } from 'vite';
+import { readFileSync } from 'node:fs';
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   // Relative base so the build works on GitHub Pages sub-paths or any static host.
   base: './',
   plugins: [

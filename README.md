@@ -2,6 +2,8 @@
 
 A free PDF editor that runs entirely in the browser. Files are never uploaded; all processing happens on the user's device. After the first visit it also works offline, and it can be installed like a desktop app (PWA).
 
+Developed by **Mohamed Badr**: [Portfolio](https://mohamed-badr-nine.vercel.app/) · [LinkedIn](https://www.linkedin.com/in/mohamed-badr-95283b278)
+
 ## Features (v0.5)
 
 **Edit the PDF's own content** (Edit tool, key E)

@@ -159,7 +159,7 @@ function loadAuthor(): string {
   }
 }
 
-export type DialogName = 'signature' | 'watermark' | 'pagenumbers' | 'ocr';
+export type DialogName = 'signature' | 'watermark' | 'pagenumbers' | 'ocr' | 'about';
 
 let uidCounter = 0;
 export const uid = (prefix = 'id') => `${prefix}_${Date.now().toString(36)}_${(uidCounter++).toString(36)}`;

@@ -268,7 +268,7 @@ kbd {
   color: var(--ink);
 }
 .welcome-foot {
-  padding: 1rem 2rem 1.5rem;
+  padding: 1rem 2rem 0.5rem;
   font-size: var(--fs-sm);
   color: var(--muted);
   text-align: center;
@@ -1867,4 +1867,74 @@ circle.sel-handle {
     width: 34px;
     height: 34px;
   }
+}
+
+/* ---------- Developer credit ---------- */
+.credit {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem 0.9rem;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.credit strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+.credit-links {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+.credit-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink-2);
+  font-weight: 600;
+  text-decoration: none;
+}
+.credit-links a:hover {
+  border-color: var(--cobalt);
+  color: var(--cobalt);
+}
+.credit-links a:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+.welcome-credit {
+  padding: 0 2rem 1.5rem;
+}
+.about {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+  max-width: 26rem;
+  line-height: 1.5;
+}
+.about p {
+  margin: 0;
+}
+.about .logo-word {
+  display: inline;
+  color: var(--ink);
+  font-size: 1.35rem;
+}
+.about-version {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+.about-credit {
+  justify-content: flex-start;
+  margin-top: 0.4rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line-soft);
+  width: 100%;
 }
